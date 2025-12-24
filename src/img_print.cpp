@@ -144,6 +144,11 @@ bool ImgPrint::onCommand(endstone::CommandSender &sender, const endstone::Comman
         {
             if (const auto player = sender.asPlayer())
             {
+                if (!_in_task_pllayer_name.empty() && _in_task_pllayer_name != player->getName())
+                {
+                    sender.sendErrorMessage(Tran.getLocal("A task in running!"));
+                    return false;
+                }
                 float x = player->getLocation().getX();
                 float y = player->getLocation().getY();
                 float z = player->getLocation().getZ();

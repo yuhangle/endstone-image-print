@@ -19,6 +19,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(endstone)
 
+# nlohmann_json
+FetchContent_Declare(
+        nlohmann_json
+        GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG v3.12.0
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 # fmt (header-only or static)
 FetchContent_Declare(
         fmt
@@ -33,7 +41,7 @@ file(GLOB PLUGIN_SOURCES
 )
 endstone_add_plugin(${PROJECT_NAME} ${PLUGIN_SOURCES})
 
-target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only)
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only nlohmann_json::nlohmann_json)
 
 find_package(Git QUIET)
 if(GIT_FOUND)
