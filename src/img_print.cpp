@@ -66,6 +66,7 @@ void ImgPrint::onEnable()
 void ImgPrint::onDisable()
 {
     getLogger().info("onDisable is called");
+    getServer().getScheduler().cancelTasks(*this);
 }
 
 
@@ -209,7 +210,7 @@ void ImgPrint::_task_build_map()
     vector<string> error_commands;
 
     // 安全获取当前区块的命令列表
-    int fa_times;
+    int fa_times = 0;
     for (const auto &current_chunk = _in_task_build_commands[_in_task_chunk_index]; const auto &cmd : current_chunk)
     {
         bool su =false;

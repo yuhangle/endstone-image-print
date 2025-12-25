@@ -81,9 +81,9 @@ inline std::vector<MapBlock> initPalette() {
         // --- 初音绿/青色系 (Miku Teal) ---
         {"minecraft:diamond_block", 81, 189, 184},
         {"minecraft:prismarine_bricks", 94, 142, 134},
-        {"minecraft:oxidized_copper", 66, 130, 122},
         {"minecraft:warped_planks", 41, 89, 101},
         {"minecraft:cyan_concrete", 66, 109, 134},
+        {"minecraft:warped_wart_block", 20, 180, 133},
         // --- Miku 色域增强 ---
         {"minecraft:sea_lantern", 172, 209, 201},
         {"minecraft:prismarine", 102, 153, 153},
@@ -94,7 +94,6 @@ inline std::vector<MapBlock> initPalette() {
         {"minecraft:cherry_leaves", 214, 117, 151},
         {"minecraft:pink_wool", 242, 127, 165},
         {"minecraft:pink_concrete", 210, 109, 138},
-        {"minecraft:white_terracotta", 180, 151, 134},
 
         // --- 黄色/明亮系 ---
         {"minecraft:bamboo_planks", 197, 175, 43},
@@ -106,7 +105,6 @@ inline std::vector<MapBlock> initPalette() {
         {"minecraft:lapis_block", 64, 101, 220},
         {"minecraft:blue_concrete", 43, 55, 134},
         {"minecraft:light_blue_wool", 102, 153, 216},
-        {"minecraft:ice", 138, 138, 220},
 
         // --- 红色/紫色系 ---
         {"minecraft:red_concrete", 134, 31, 31},
@@ -128,7 +126,64 @@ inline std::vector<MapBlock> initPalette() {
         // --- 额外灰阶 ---
         {"minecraft:polished_andesite", 132, 135, 134},
         {"minecraft:polished_diorite", 191, 191, 191},
-        {"minecraft:quartz_block", 220, 215, 205}
+        {"minecraft:quartz_block", 220, 215, 205},
+
+        // --- 红色/橙色渐变 ---
+        {"minecraft:red_wool", 150, 50, 50},
+        {"minecraft:redstone_block", 171, 50, 44},
+        {"minecraft:orange_wool", 240, 118, 19},
+        {"minecraft:acacia_planks", 169, 91, 50},
+        {"minecraft:brown_mushroom_block", 149, 85, 50},
+
+        // --- 黄绿色 ---
+        {"minecraft:lime_wool", 112, 185, 25},
+
+        // --- 蓝紫色 ---
+        {"minecraft:purple_wool", 121, 42, 150},
+        {"minecraft:blue_ice", 116, 167, 253},
+        {"minecraft:packed_ice", 141, 184, 255},
+
+        // --- 带釉陶瓦系列 ---
+        {"minecraft:white_glazed_terracotta", 189, 196, 199},
+        {"minecraft:silver_glazed_terracotta", 137, 141, 144}, // 基岩版淡灰色
+        {"minecraft:gray_glazed_terracotta", 76, 81, 86},
+        {"minecraft:black_glazed_terracotta", 44, 29, 34},
+        {"minecraft:brown_glazed_terracotta", 125, 85, 59},
+        {"minecraft:red_glazed_terracotta", 179, 59, 57},
+        {"minecraft:orange_glazed_terracotta", 224, 117, 51},
+        {"minecraft:yellow_glazed_terracotta", 232, 171, 59},
+        {"minecraft:lime_glazed_terracotta", 129, 183, 63},
+        {"minecraft:green_glazed_terracotta", 95, 139, 70},
+        {"minecraft:cyan_glazed_terracotta", 50, 118, 119},
+        {"minecraft:light_blue_glazed_terracotta", 103, 138, 169},
+        {"minecraft:blue_glazed_terracotta", 71, 74, 142},
+        {"minecraft:purple_glazed_terracotta", 118, 70, 142},
+        {"minecraft:magenta_glazed_terracotta", 169, 78, 143},
+        {"minecraft:pink_glazed_terracotta", 221, 141, 167},
+
+        // --- 铜家族 ---
+        {"minecraft:copper_block", 216, 127, 51},
+        {"minecraft:exposed_copper", 135, 107, 98},
+        {"minecraft:weathered_copper", 58, 142, 140},
+        {"minecraft:oxidized_copper", 22, 126, 134},
+
+        // --- 陶瓦家族 ---
+        {"minecraft:white_terracotta", 209, 177, 161},
+        {"minecraft:light_gray_terracotta", 135, 107, 98},
+        {"minecraft:gray_terracotta", 57, 41, 35},
+        {"minecraft:black_terracotta", 37, 22, 16},
+        {"minecraft:brown_terracotta", 76, 50, 35},
+        {"minecraft:red_terracotta", 142, 60, 46},
+        {"minecraft:orange_terracotta", 159, 82, 36},
+        {"minecraft:yellow_terracotta", 186, 133, 36},
+        {"minecraft:lime_terracotta", 103, 117, 53},
+        {"minecraft:green_terracotta", 76, 82, 42},
+        {"minecraft:cyan_terracotta", 87, 92, 92},
+        {"minecraft:light_blue_terracotta", 112, 108, 138},
+        {"minecraft:blue_terracotta", 76, 62, 92},
+        {"minecraft:purple_terracotta", 122, 73, 88},
+        {"minecraft:magenta_terracotta", 149, 87, 108},
+        {"minecraft:pink_terracotta", 160, 77, 78}
     };
     // 预计算所有方块的 Lab 值
     for (auto &block : palette) {
