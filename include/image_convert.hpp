@@ -11,6 +11,12 @@
 #include <iostream>
 #include <filesystem>
 #include <algorithm>
+#include <thread>
+#include <future>
+#include <mutex>
+#include <atomic>
+#include <queue>
+#include <condition_variable>
 // 引入图像读取库
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party_lib/stb/stb_image.h"
@@ -220,23 +226,23 @@ inline const MapBlock& getBestBlock(const int r, const int g, const int b) {
 inline int checkImageSize(const std::string& imagePath) {
     // 检查文件是否存在
     if (!fs::exists(imagePath)) {
-        std::cerr << "错误: 文件不存在 - " << imagePath << std::endl;
+        std::cerr << "Error: File does not exist - " << imagePath << std::endl;
         return -3;
     }
 
     // 检查格式是否支持
     if (!isSupportedImageFormat(imagePath)) {
-        std::cerr << "错误: 不支持的图像格式 - " << imagePath << std::endl;
-        std::cerr << "支持的格式: PNG, JPG, JPEG, BMP, TGA, PSD, GIF, HDR, PIC, PNM" << std::endl;
+        std::cerr << "Error: Unsupported image format - " << imagePath << std::endl;
+        std::cerr << "Supported formats: PNG, JPG, JPEG, BMP, TGA, PSD, GIF, HDR, PIC, PNM" << std::endl;
         return -3;
     }
 
     int w, h, c;
     unsigned char* img = stbi_load(imagePath.c_str(), &w, &h, &c, 0);
     if (!img) {
-        std::cerr << "错误: 无法加载图像文件 - " << imagePath << std::endl;
-        std::cerr << "原因: " << stbi_failure_reason() << std::endl;
-        return -2; // 加载失败
+        std::cerr << "Error: Cannot load image file - " << imagePath << std::endl;
+        std::cerr << "Reason: " << stbi_failure_reason() << std::endl;
+        return -2; // Load failed
     }
     stbi_image_free(img);
 
@@ -322,21 +328,21 @@ inline unsigned char* resizeTo128x128(const unsigned char* img, const int w, con
 inline unsigned char* convertTo128x128Image(const std::string& inputPath) {
     // 检查文件格式
     if (!isSupportedImageFormat(inputPath)) {
-        std::cerr << "错误: 不支持的图像格式 - " << inputPath << std::endl;
+        std::cerr << "Error: Unsupported image format - " << inputPath << std::endl;
         return nullptr;
     }
 
     int w, h, c;
     unsigned char* img = stbi_load(inputPath.c_str(), &w, &h, &c, 3);
     if (!img) {
-        std::cerr << "错误: 无法加载图像 " << inputPath << std::endl;
-        std::cerr << "详细原因: " << stbi_failure_reason() << std::endl;
+        std::cerr << "Error: Cannot load image " << inputPath << std::endl;
+        std::cerr << "Detailed reason: " << stbi_failure_reason() << std::endl;
         return nullptr;
     }
 
-    std::cout << "已加载图像: " << inputPath
-              << " 尺寸: " << w << "x" << h
-              << " 通道: " << c << std::endl;
+    std::cout << "Loaded image: " << inputPath
+              << " Size: " << w << "x" << h
+              << " Channels: " << c << std::endl;
 
     // 如果已经是128x128，直接返回
     if (w == 128 && h == 128) {
@@ -350,29 +356,62 @@ inline unsigned char* convertTo128x128Image(const std::string& inputPath) {
     return resized_img;
 }
 
+// 多线程处理行数据的辅助函数
+inline void processRowsForCSV(const unsigned char* img, std::vector<std::string>& results,
+                              const int start_row, const int end_row, const int thread_id) {
+    std::stringstream ss;
+    for (int z = start_row; z < end_row; ++z) {
+        for (int x = 0; x < 128; ++x) {
+            const int idx = (z * 128 + x) * 3;
+            const MapBlock& bestBlock = getBestBlock(img[idx], img[idx + 1], img[idx + 2]);
+            ss << x << "," << z << "," << bestBlock.internal_id << "\n";
+        }
+    }
+    results[thread_id] = ss.str();
+}
+
 // 将128x128图像转换为MC数据CSV
 inline bool convert128x128ImageToCSV(const unsigned char* img, const std::string& outputPath) {
     if (!img) return false;
 
     std::ofstream dataFile(outputPath);
     if (!dataFile.is_open()) {
-        std::cerr << "错误: 无法创建输出文件 " << outputPath << std::endl;
+        std::cerr << "can not create file " << outputPath << std::endl;
         return false;
     }
 
     // 写入CSV头部
     dataFile << "x,z,block_id\n";
 
-    // 遍历像素，以左上角为 (0,0)
-    for (int z = 0; z < 128; ++z) {
-        for (int x = 0; x < 128; ++x) {
-            // 获取对应像素 RGB
-            const int idx = (z * 128 + x) * 3;
+    // 确定线程数
+    const int num_threads = static_cast<int>(
+    std::min(128u, std::max(1u, std::thread::hardware_concurrency()))
+);
+    const int rows_per_thread = 128 / num_threads;
+    const int extra_rows = 128 % num_threads;
 
-            const MapBlock& bestBlock = getBestBlock(img[idx], img[idx + 1], img[idx + 2]);
+    std::vector<std::thread> threads;
+    std::vector<std::string> thread_results(num_threads);
 
-            dataFile << x << "," << z << "," << bestBlock.internal_id << "\n";
-        }
+    // 启动线程处理行数据
+    int current_row = 0;
+    for (unsigned int i = 0; i < num_threads; ++i) {
+        const int rows_for_this_thread = rows_per_thread + (i < extra_rows ? 1 : 0);
+        int end_row = current_row + rows_for_this_thread;
+
+        threads.emplace_back(processRowsForCSV, img, std::ref(thread_results),
+                           current_row, end_row, i);
+        current_row = end_row;
+    }
+
+    // 等待所有线程完成
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    // 合并结果并写入文件
+    for (const auto& result : thread_results) {
+        dataFile << result;
     }
 
     dataFile.close();
@@ -383,22 +422,12 @@ inline bool convert128x128ImageToCSV(const unsigned char* img, const std::string
 inline bool convertImageToMinecraftCSV(const std::string& inputPath, const std::string& outputPath) {
     // 检查输入文件是否存在
     if (!fs::exists(inputPath)) {
-        std::cerr << "错误: 输入文件不存在 - " << inputPath << std::endl;
+        std::cerr << "Can not find file " << inputPath << std::endl;
         return false;
     }
 
     // 检查图像格式
     if (!isSupportedImageFormat(inputPath)) {
-        /*
-        std::cerr << "错误: 不支持的图像格式 - " << inputPath << std::endl;
-        std::cout << "支持以下格式:" << std::endl;
-        std::cout << "  - PNG (.png)" << std::endl;
-        std::cout << "  - JPEG/JPG (.jpg, .jpeg)" << std::endl;
-        std::cout << "  - BMP (.bmp)" << std::endl;
-        std::cout << "  - TGA (.tga)" << std::endl;
-        std::cout << "  - GIF (.gif)" << std::endl;
-        std::cout << "  - 以及其他stb_image支持的格式" << std::endl;
-        */
         return false;
     }
 
@@ -406,21 +435,6 @@ inline bool convertImageToMinecraftCSV(const std::string& inputPath, const std::
     if (const int sizeStatus = checkImageSize(inputPath); sizeStatus == -2 || sizeStatus == -3) {
         return false; // 错误信息已在函数内部输出
     }
-
-    /*
-
-    std::cout << "图像信息: " << std::endl;
-    std::cout << "  文件: " << inputPath << std::endl;
-    std::cout << "  格式: " << getFileExtension(inputPath) << std::endl;
-    std::cout << "  状态: ";
-    switch (sizeStatus) {
-    case 0: std::cout << "完美尺寸 (128x128)"; break;
-    case 1: std::cout << "大于128x128，将进行缩放"; break;
-    case -1: std::cout << "小于128x128，将进行缩放（可能会模糊）"; break;
-    default: ;
-    }
-    std::cout << std::endl;
-    */
 
     // 转换为128x128图像
     const unsigned char* img = convertTo128x128Image(inputPath);
@@ -434,13 +448,23 @@ inline bool convertImageToMinecraftCSV(const std::string& inputPath, const std::
     // 清理内存
     delete[] img;
 
-    if (success) {
-        //std::cout << "✓ MC数据文件已生成: " << outputPath << std::endl;
-        //std::cout << "  包含128x128个方块数据，可用于生成地图画" << std::endl;
-    }
-
     return success;
 }
+
+// 多线程处理预览图像生成的辅助函数
+inline void processRowsForPreview(const unsigned char* img, unsigned char* preview,
+                                  int start_row, int end_row) {
+    for (int z = start_row; z < end_row; ++z) {
+        for (int x = 0; x < 128; ++x) {
+            const int idx = (z * 128 + x) * 3;
+            const MapBlock& best = getBestBlock(img[idx], img[idx + 1], img[idx + 2]);
+            preview[idx] = static_cast<unsigned char>(best.r);
+            preview[idx + 1] = static_cast<unsigned char>(best.g);
+            preview[idx + 2] = static_cast<unsigned char>(best.b);
+        }
+    }
+}
+
 
 // 生成预览图像
 inline bool generatePreviewImage(const unsigned char* img, const std::string& outputPath) {
@@ -449,54 +473,137 @@ inline bool generatePreviewImage(const unsigned char* img, const std::string& ou
     // 创建预览缓冲区
     auto* preview = new unsigned char[128 * 128 * 3];
 
-    for (int z = 0; z < 128; ++z) {
-        for (int x = 0; x < 128; ++x) {
-            const int idx = (z * 128 + x) * 3;
+    // 确定线程数
+    const int num_threads = static_cast<int>(
+        std::min(128u, std::max(1u, std::thread::hardware_concurrency()))
+    );
+    const int rows_per_thread = 128 / num_threads;
+    const int extra_rows = 128 % num_threads;
 
-            // 直接获取匹配到的方块对象
-            const MapBlock& best = getBestBlock(img[idx], img[idx + 1], img[idx + 2]);
+    std::vector<std::thread> threads;
+    int current_row = 0;
 
-            // 直接赋值 RGB
-            preview[idx]     = static_cast<unsigned char>(best.r);
-            preview[idx + 1] = static_cast<unsigned char>(best.g);
-            preview[idx + 2] = static_cast<unsigned char>(best.b);
-        }
+    // 启动线程处理行数据
+    for (unsigned int i = 0; i < num_threads; ++i) {
+        const int rows_for_this_thread = rows_per_thread + (i < extra_rows ? 1 : 0);
+        int end_row = current_row + rows_for_this_thread;
+
+        threads.emplace_back(processRowsForPreview, img, preview, current_row, end_row);
+        current_row = end_row;
     }
 
-    // 保存图像 (注意：需要确保包含了 stb_image_write.h)
+    // 等待所有线程完成
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    // 保存图像
     const int result = stbi_write_png(outputPath.c_str(), 128, 128, 3, preview, 128 * 3);
 
     delete[] preview;
     return result != 0;
 }
 
-// 批量转换函数（新增功能）
+// 批量转换函数
 inline bool convertMultipleImagesToCSV(const std::vector<std::string>& inputPaths,
-                                      const std::string& outputDir = "./output") {
-    // 创建输出目录
+                                      const std::string& outputDir = "./output",
+                                      const bool generatePreview = true) {
     fs::create_directories(outputDir);
 
     int successCount = 0;
-    //const int totalCount = static_cast<int>(inputPaths.size());
+    int previewCount = 0;
+    std::mutex count_mutex;
 
-    for (const auto & inputPath : inputPaths) {
-        //std::cout << "\n=== 处理文件 " << (i+1) << "/" << totalCount << " ===" << std::endl;
-        //std::cout << "输入: " << inputPath << std::endl;
+    const unsigned int num_threads = std::max(1u, std::thread::hardware_concurrency());
+    std::vector<std::thread> workers;
+    std::queue<std::string> task_queue;
+    std::mutex queue_mutex;
+    std::condition_variable cv;
+    bool finished = false;
 
-        // 生成输出文件名
-        fs::path inputFilePath(inputPath);
-        std::string outputFilename = inputFilePath.stem().string() + "_mc_data.csv";
-
-        if (std::string outputPath = (fs::path(outputDir) / outputFilename).string(); convertImageToMinecraftCSV(inputPath, outputPath)) {
-            successCount++;
-            //std::cout << "输出: " << outputPath << " ✓" << std::endl;
-        } else {
-            std::cout << "输出: 转换失败 ✗" << std::endl;
-        }
+    // 填充任务队列
+    for (const auto& path : inputPaths) {
+        task_queue.push(path);
     }
 
-    //std::cout << "\n=== 转换完成 ===" << std::endl;
-    //std::cout << "成功: " << successCount << "/" << totalCount << " 个文件" << std::endl;
+    // 工作线程函数（修改后支持预览图生成）
+    auto worker = [&]() {
+        while (true) {
+            std::string path;
+            {
+                std::unique_lock lock(queue_mutex);
+                cv.wait(lock, [&]() { return !task_queue.empty() || finished; });
+                if (task_queue.empty() && finished) return;
+                path = std::move(task_queue.front());
+                task_queue.pop();
+            }
+
+            // 处理单个图像
+            fs::path inputFilePath(path);
+            std::string baseName = inputFilePath.stem().string();
+            std::string csvPath = (fs::path(outputDir) / (baseName + "_mc_data.csv")).string();
+            std::string previewPath = (fs::path(outputDir) / (baseName + "_preview.png")).string();
+
+            // 读取并缩放图像到128x128
+            if (unsigned char* img = convertTo128x128Image(path)) {
+                // 生成CSV
+                if (convert128x128ImageToCSV(img, csvPath)) {
+                    std::lock_guard lock(count_mutex);
+                    successCount++;
+                    std::cout << "Converted CSV: " << path << " -> " << csvPath << " ✓" << std::endl;
+                } else {
+                    std::lock_guard lock(count_mutex);
+                    std::cout << "Convert CSV failed: " << path << " ✗" << std::endl;
+                }
+
+                // 生成预览图（如果启用）
+                if (generatePreview) {
+                    if (generatePreviewImage(img, previewPath)) {
+                        std::lock_guard lock(count_mutex);
+                        previewCount++;
+                        std::cout << "Generated preview: " << previewPath << " ✓" << std::endl;
+                    } else {
+                        std::lock_guard lock(count_mutex);
+                        std::cout << "Generate preview failed: " << path << " ✗" << std::endl;
+                    }
+                }
+
+                // 清理图像内存
+                delete[] img;
+            } else {
+                std::lock_guard lock(count_mutex);
+                std::cout << "Load image failed: " << path << " ✗" << std::endl;
+            }
+        }
+    };
+
+    // 启动工作线程
+    for (unsigned int i = 0; i < num_threads; ++i) {
+        workers.emplace_back(worker);
+    }
+
+    // 等待所有任务完成
+    {
+        std::unique_lock lock(queue_mutex);
+        while (!task_queue.empty()) {
+            lock.unlock();
+            std::this_thread::sleep_for(std::chrono::milliseconds(10)); // 简单轮询
+            lock.lock();
+        }
+        finished = true;
+    }
+    cv.notify_all();
+
+    for (auto& t : workers) {
+        if (t.joinable()) t.join();
+    }
+
+    std::cout << "\nBatch conversion completed:" << std::endl;
+    std::cout << "  Total files: " << inputPaths.size() << std::endl;
+    std::cout << "  Successful CSV conversions: " << successCount << std::endl;
+    if (generatePreview) {
+        std::cout << "  Generated preview images: " << previewCount << std::endl;
+    }
 
     return successCount > 0;
 }
