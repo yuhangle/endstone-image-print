@@ -1,10 +1,10 @@
-# 🎨 ImageBuilder
+# 🎨 Image Print
 
 > **Print Images Directly into the Minecraft World.**
 
 [简体中文](README_zh-CN.md)
 
-ImageBuilder is an Endstone plugin designed to convert local images (PNG, JPG, etc.) into block-based pixel art within Minecraft. It allows you to generate real structures made of blocks directly in-game without external map tools.
+Image Print is an Endstone plugin designed to convert local images (PNG, JPG, etc.) into block-based pixel art within Minecraft. It allows you to generate real structures made of blocks directly in-game without external map tools.
 
 ---
 
